@@ -68,6 +68,8 @@ async def index():
 async def upload_csv(file: UploadFile = File(...)):
     """上传CSV实验数据，返回辨识结果"""
     content = await file.read()
+    if len(content) > 2 * 1024 * 1024:  # 2MB限制
+        return {"error": "文件过大，限制2MB"}
     text = content.decode("utf-8")
     reader = csv.reader(io.StringIO(text))
     rows = list(reader)
