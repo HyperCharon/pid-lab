@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pid-lab</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;color:#a0a0a0;font-family:'Consolas','SF Mono','Courier New',monospace;font-size:13px;overflow:hidden;height:100vh}
+#app{display:flex;flex-direction:column;height:100vh}
+
+/* 顶部工具栏 */
+#toolbar{display:flex;align-items:center;gap:6px;padding:5px 10px;background:#111;border-bottom:1px solid #1a1a1a;flex-shrink:0}
+#toolbar select{background:#181818;color:#aaa;border:1px solid #2a2a2a;padding:3px 6px;font-family:inherit;font-size:12px;cursor:pointer}
+#toolbar button{background:#181818;color:#00cc66;border:1px solid #00cc6640;padding:3px 10px;font-family:inherit;font-size:12px;cursor:pointer;transition:all .15s}
+#toolbar button:hover{background:#00cc6618;border-color:#00cc6680}
+#toolbar button.active{background:#00cc6630;border-color:#00cc66}
+#toolbar button.danger{color:#ff4444;border-color:#ff444440}
+#toolbar button.danger:hover{background:#ff444418}
+#toolbar .sep{width:1px;height:18px;background:#2a2a2a;margin:0 4px}
+#toolbar .label{color:#555;font-size:11px;margin-right:2px}
+
+/* 主区域 */
+#main-area{display:flex;flex:1;overflow:hidden}
+
+/* 左侧参数面板 */
+#params-panel{width:200px;background:#0e0e0e;border-right:1px solid #1a1a1a;padding:8px;overflow-y:auto;flex-shrink:0}
+#params-panel::-webkit-scrollbar{width:4px}
+#params-panel::-webkit-scrollbar-thumb{background:#2a2a2a}
+.param-section{margin-bottom:10px}
+.param-section h3{color:#00cc66;font-size:11px;font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #1a1a1a;padding-bottom:3px}
+.param-row{display:flex;align-items:center;gap:4px;margin-bottom:4px}
+.param-row label{width:28px;color:#666;font-size:11px;text-align:right;flex-shrink:0}
+.param-row input[type=range]{flex:1;height:4px;accent-color:#00cc66;cursor:pointer}
+.param-row input[type=number]{width:56px;background:#181818;color:#00cc66;border:1px solid #2a2a2a;padding:2px 4px;font-family:inherit;font-size:11px;text-align:right}
+.param-row input[type=number]:focus{border-color:#00cc6660;outline:none}
+.param-row .unit{color:#444;font-size:10px;width:12px}
+
+/* 示波器 */
+#scope-area{flex:1;display:flex;flex-direction:column;position:relative}
+#scope-container{flex:1;display:flex;position:relative}
+.scope-wrap{flex:1;position:relative}
+.scope-wrap canvas{width:100%;height:100%;display:block}
+#scope-divider{width:1px;background:#1a1a1a;display:none}
+
+/* 右侧信息面板 */
+#info-panel{width:170px;background:#0e0e0e;border-left:1px solid #1a1a1a;padding:8px;flex-shrink:0;overflow-y:auto}
+.info-section{margin-bottom:10px}
+.info-section h3{color:#00cc66;font-size:11px;font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px}
+.metric-row{display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px}
+.metric-row .val{color:#00cc66;font-weight:bold}
+.metric-row .val.warn{color:#ff8800}
+.metric-row .val.bad{color:#ff4444}
+
+/* 底部频域区 */
+#freq-area{display:flex;gap:2px;height:180px;background:#0c0c0c;border-top:1px solid #1a1a1a;flex-shrink:0}
+.freq-panel{flex:1;position:relative}
+.freq-panel canvas{width:100%;height:100%;display:block}
+.freq-panel .title{position:absolute;top:3px;left:6px;color:#444;font-size:10px;text-transform:uppercase}
+
+/* 扰动控制 */
+.dist-ctrl{margin-top:6px}
+.dist-ctrl label{color:#555;font-size:10px;display:block;margin-bottom:2px}
+.dist-ctrl input[type=range]{width:100%;accent-color:#ff8800}
+.dist-ctrl .btn-row{display:flex;gap:4px;margin-top:3px}
+.dist-ctrl .btn-row button{flex:1;background:#181818;color:#ff8800;border:1px solid #ff880040;padding:2px;font-family:inherit;font-size:10px;cursor:pointer}
+.dist-ctrl .btn-row button:hover{background:#ff880018}
+
+/* 自动整定弹窗 */
+#autotune-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:#000a;z-index:100;display:none;justify-content:center;align-items:center}
+#autotune-overlay.show{display:flex}
+#autotune-box{background:#141414;border:1px solid #00cc6640;padding:16px;width:680px;max-height:80vh;overflow-y:auto}
+#autotune-box h2{color:#00cc66;font-size:14px;margin-bottom:10px}
+#autotune-box select{background:#1a1a1a;color:#aaa;border:1px solid #2a2a2a;padding:4px;font-family:inherit;margin-bottom:8px}
+#tune-canvas{width:100%;height:250px;background:#0a0a0a;border:1px solid #1a3a1a}
+#tune-result{color:#888;font-size:11px;margin:8px 0;min-height:40px}
+#tune-result .val{color:#00cc66;font-weight:bold}
+#autotune-box .btn-row{display:flex;gap:8px;margin-top:8px}
+#autotune-box .btn-row button{flex:1;padding:6px;font-family:inherit;font-size:12px;cursor:pointer;border:1px solid}
+.btn-apply{background:#00cc6620;color:#00cc66;border-color:#00cc6660}
+.btn-close{background:#1a1a1a;color:#888;border-color:#333}
+
+/* 教程浮层 */
+.tutorial-tip{position:absolute;background:#1a1a00;border:1px solid #666600;color:#cccc00;font-size:10px;padding:4px 6px;pointer-events:none;z-index:50;max-width:180px;line-height:1.3;border-radius:2px}
+
+/* 快捷键提示 */
+#shortcuts{position:fixed;bottom:4px;right:4px;color:#333;font-size:10px;z-index:10}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- 工具栏 -->
+  <div id="toolbar">
+    <span class="label">模型</span>
+    <select id="sel-model">
+      <option value="dc_motor">电机调速</option>
+      <option value="temperature">温度控制</option>
+      <option value="tank_level">液位控制</option>
+      <option value="servo">伺服定位</option>
+      <option value="second_order">二阶系统</option>
+      <option value="coupled_tank">耦合双容</option>
+      <option value="sopdt">二阶+滞后</option>
+      <option value="integrating">纯积分</option>
+      <option value="custom">自定义TF</option>
+    </select>
+    <div class="sep"></div>
+    <span class="label">算法</span>
+    <select id="sel-variant">
+      <option value="parallel">并行式</option>
+      <option value="isa">ISA标准</option>
+      <option value="incremental">增量式</option>
+    </select>
+    <div class="sep"></div>
+    <button id="btn-run">▶ RUN</button>
+    <button id="btn-pause">⏸ PAUSE</button>
+    <button id="btn-reset">↺ RESET</button>
+    <div class="sep"></div>
+    <button id="btn-autotune">⚡ 整定</button>
+    <button id="btn-compare">◫ 对比</button>
+    <button id="btn-freq">📈 频域</button>
+    <div class="sep"></div>
+    <button id="btn-save">💾 保存</button>
+    <button id="btn-load">📂 加载</button>
+    <button id="btn-export">📤 CSV</button>
+    <button id="btn-upload">📥 导入</button>
+    <div class="sep"></div>
+    <button id="btn-tutorial">? 教程</button>
+  </div>
+
+  <!-- 主区域 -->
+  <div id="main-area">
+    <!-- 参数面板 -->
+    <div id="params-panel">
+      <div class="param-section">
+        <h3>PID 参数</h3>
+        <div class="param-row"><label>Kp</label><input type="range" id="sl-kp" min="0" max="30" step="0.01" value="2"><input type="number" id="in-kp" step="0.01" value="2"></div>
+        <div class="param-row"><label>Ki</label><input type="range" id="sl-ki" min="0" max="20" step="0.01" value="0.5"><input type="number" id="in-ki" step="0.01" value="0.5"></div>
+        <div class="param-row"><label>Kd</label><input type="range" id="sl-kd" min="0" max="10" step="0.001" value="0.1"><input type="number" id="in-kd" step="0.001" value="0.1"></div>
+      </div>
+      <div class="param-section">
+        <h3>ISA 参数</h3>
+        <div class="param-row"><label>Ti</label><input type="range" id="sl-ti" min="0.1" max="50" step="0.1" value="4"><input type="number" id="in-ti" step="0.1" value="4"></div>
+        <div class="param-row"><label>Td</label><input type="range" id="sl-td" min="0" max="10" step="0.01" value="0.2"><input type="number" id="in-td" step="0.01" value="0.2"></div>
+        <div class="param-row"><label>Tf</label><input type="range" id="sl-tf" min="0.001" max="1" step="0.001" value="0.02"><input type="number" id="in-tf" step="0.001" value="0.02"></div>
+      </div>
+      <div class="param-section">
+        <h3>设定值权重</h3>
+        <div class="param-row"><label>β</label><input type="range" id="sl-beta" min="0" max="1" step="0.01" value="1"><input type="number" id="in-beta" step="0.01" value="1"></div>
+        <div class="param-row"><label>γ</label><input type="range" id="sl-gamma" min="0" max="1" step="0.01" value="1"><input type="number" id="in-gamma" step="0.01" value="1"></div>
+      </div>
+      <div class="param-section">
+        <h3>设定值</h3>
+        <div class="param-row"><label>SP</label><input type="range" id="sl-sp" min="0" max="100" step="1" value="50"><input type="number" id="in-sp" step="1" value="50"></div>
+      </div>
+      <div class="param-section">
+        <h3>模型参数</h3>
+        <div class="param-row"><label>K</label><input type="range" id="sl-mk" min="0.1" max="10" step="0.1" value="1"><input type="number" id="in-mk" step="0.1" value="1"></div>
+        <div class="param-row"><label>τ</label><input type="range" id="sl-mtau" min="0.1" max="20" step="0.1" value="1"><input type="number" id="in-mtau" step="0.1" value="1"></div>
+        <div class="param-row"><label>θ</label><input type="range" id="sl-mtheta" min="0" max="10" step="0.1" value="0.5"><input type="number" id="in-mtheta" step="0.1" value="0.5"></div>
+        <div class="param-row"><label>ζ</label><input type="range" id="sl-mzeta" min="0.01" max="2" step="0.01" value="0.7"><input type="number" id="in-mzeta" step="0.01" value="0.7"></div>
+        <div class="param-row"><label>ωn</label><input type="range" id="sl-momega" min="0.1" max="20" step="0.1" value="2"><input type="number" id="in-momega" step="0.1" value="2"></div>
+      </div>
+      <div class="param-section" id="custom-tf-section" style="display:none">
+        <h3>自定义传递函数</h3>
+        <div style="margin-bottom:4px"><label style="color:#666;font-size:10px">分子系数(逗号分隔)</label><input type="text" id="in-custom-num" value="1" style="width:100%;background:#181818;color:#00cc66;border:1px solid #2a2a2a;padding:2px 4px;font-family:inherit;font-size:11px"></div>
+        <div><label style="color:#666;font-size:10px">分母系数(逗号分隔)</label><input type="text" id="in-custom-den" value="1,1" style="width:100%;background:#181818;color:#00cc66;border:1px solid #2a2a2a;padding:2px 4px;font-family:inherit;font-size:11px"></div>
+        <div style="color:#444;font-size:9px;margin-top:2px">例: 1,2,1 表示 s²+2s+1</div>
+      </div>
+      <div class="param-section">
+        <h3>扰动 / 噪声</h3>
+        <div class="dist-ctrl">
+          <label>阶跃扰动幅度</label>
+          <input type="range" id="sl-dist" min="0" max="50" step="1" value="0">
+          <div class="btn-row"><button id="btn-inject">注入扰动</button><button id="btn-clear-dist">清除</button></div>
+        </div>
+        <div class="dist-ctrl" style="margin-top:6px">
+          <label>噪声幅度</label>
+          <input type="range" id="sl-noise" min="0" max="5" step="0.1" value="0">
+        </div>
+      </div>
+    </div>
+
+    <!-- 示波器 -->
+    <div id="scope-area">
+      <div id="scope-container">
+        <div class="scope-wrap" id="scope-wrap-a"><canvas id="scope-a"></canvas></div>
+        <div id="scope-divider"></div>
+        <div class="scope-wrap" id="scope-wrap-b" style="display:none"><canvas id="scope-b"></canvas></div>
+      </div>
+    </div>
+
+    <!-- 信息面板 -->
+    <div id="info-panel">
+      <div class="info-section">
+        <h3>性能指标</h3>
+        <div class="metric-row"><span>超调量</span><span class="val" id="m-overshoot">--</span></div>
+        <div class="metric-row"><span>调节时间</span><span class="val" id="m-settling">--</span></div>
+        <div class="metric-row"><span>上升时间</span><span class="val" id="m-rise">--</span></div>
+        <div class="metric-row"><span>稳态误差</span><span class="val" id="m-sserr">--</span></div>
+        <div class="metric-row"><span>IAE</span><span class="val" id="m-iae">--</span></div>
+        <div class="metric-row"><span>ISE</span><span class="val" id="m-ise">--</span></div>
+      </div>
+      <div class="info-section">
+        <h3>当前输出</h3>
+        <div class="metric-row"><span>PV</span><span class="val" id="d-pv">0.00</span></div>
+        <div class="metric-row"><span>CV</span><span class="val" id="d-cv">0.00</span></div>
+        <div class="metric-row"><span>时间</span><span class="val" id="d-t">0.0s</span></div>
+      </div>
+      <div class="info-section" id="freq-info" style="display:none">
+        <h3>频域裕度</h3>
+        <div class="metric-row"><span>增益裕度</span><span class="val" id="d-gm">--</span></div>
+        <div class="metric-row"><span>相位裕度</span><span class="val" id="d-pm">--</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部频域区 -->
+  <div id="freq-area" style="display:none">
+    <div class="freq-panel"><canvas id="bode-mag"></canvas><span class="title">Bode 幅频</span></div>
+    <div class="freq-panel"><canvas id="bode-phase"></canvas><span class="title">Bode 相频</span></div>
+    <div class="freq-panel"><canvas id="nyquist"></canvas><span class="title">Nyquist</span></div>
+  </div>
+</div>
+
+<!-- 自动整定弹窗 -->
+<div id="autotune-overlay">
+  <div id="autotune-box">
+    <h2>⚡ 自动整定</h2>
+    <select id="sel-tune-method">
+      <option value="step_response">Ziegler-Nichols 阶跃响应</option>
+      <option value="cohen_coon">Cohen-Coon</option>
+      <option value="relay_feedback">继电反馈法</option>
+      <option value="lambda_tuning">Lambda 整定</option>
+      <option value="optimize">参数优化 (ISE/IAE/ITAE)</option>
+    </select>
+    <div id="opt-criterion-row" style="display:none;margin:4px 0">
+      <span style="color:#666;font-size:11px">优化目标:</span>
+      <select id="sel-criterion" style="background:#1a1a1a;color:#aaa;border:1px solid #2a2a2a;padding:2px;font-family:inherit;font-size:11px">
+        <option value="ISE">ISE (积分平方误差)</option>
+        <option value="IAE">IAE (积分绝对误差)</option>
+        <option value="ITAE">ITAE (时间加权绝对误差)</option>
+        <option value="overshoot">最小超调</option>
+      </select>
+    </div>
+    <canvas id="tune-canvas"></canvas>
+    <div id="tune-result">点击"执行"开始整定...</div>
+    <div class="btn-row">
+      <button class="btn-apply" id="btn-tune-run">执行</button>
+      <button class="btn-apply" id="btn-tune-apply" style="display:none">应用参数</button>
+      <button class="btn-close" id="btn-tune-close">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- CSV上传弹窗 -->
+<div id="upload-overlay" style="display:none">
+  <div id="upload-box" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#141414;border:1px solid #00cc6640;padding:16px;width:500px;z-index:100">
+    <h2 style="color:#00cc66;font-size:14px;margin-bottom:10px">📥 导入实验数据</h2>
+    <p style="color:#888;font-size:11px;margin-bottom:8px">CSV格式: 第一列时间, 第二列输入(可选), 第三列输出。第一行表头。</p>
+    <input type="file" id="file-csv" accept=".csv" style="color:#aaa;font-size:12px;margin-bottom:8px">
+    <div id="upload-result" style="color:#888;font-size:11px;min-height:60px"></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="btn-upload-identify" style="flex:1;padding:6px;background:#00cc6620;color:#00cc66;border:1px solid #00cc6660;font-family:inherit;font-size:12px;cursor:pointer">辨识</button>
+      <button id="btn-upload-close" style="flex:1;padding:6px;background:#1a1a1a;color:#888;border:1px solid #333;font-family:inherit;font-size:12px;cursor:pointer">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div id="shortcuts">R=重置 Space=暂停 D=扰动 C=对比 S=保存 1~6=切模型</div>
+
+<script>
+// ============================================================
+// 全局状态
+// ============================================================
+const S = {
+  ws: null,
+  running: false,
+  paused: false,
+  compareMode: false,
+  tutorialOn: false,
+  freqVisible: false,
+  // PID参数
+  pid: {Kp:2,Ki:0.5,Kd:0.1,Ti:4,Td:0.2,Tf:0.02,beta:1,gamma_:1,cv_min:0,cv_max:100,variant:'parallel',anti_windup:'clamping',back_calc_gain:0.5},
+  // 模型参数
+  model: {model_type:'dc_motor',Ts:0.1,K:1,tau:1,theta:0.5,T:2,zeta:0.7,omega_n:2,tau1:0.5,tau2:3,zeta1:0.15,coupling:0.3,dist_time:0,dist_amplitude:0,noise_amplitude:0},
+  sp: 50,
+  // 示波器数据
+  traces: {sp:[], pv:[], cv:[]},
+  tracesB: {sp:[], pv:[], cv:[]}, // 对比模式B通道
+  timeWindow: 10,
+  maxPoints: 1500,
+  // 频域数据
+  bodeData: null,
+  nyquistData: null,
+  // 自动整定结果
+  tuneResult: null,
+  // 预设列表
+  presets: [],
+};
+
+// ============================================================
+// 工具函数
+// ============================================================
+const $ = id => document.getElementById(id);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// ============================================================
+// WebSocket
+// ============================================================
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  S.ws = new WebSocket(`${proto}://${location.host}/ws`);
+  S.ws.onopen = () => { $('btn-run').style.borderColor = '#00cc66'; };
+  S.ws.onclose = () => { $('btn-run').style.borderColor = '#ff4444'; setTimeout(connect, 2000); };
+  S.ws.onmessage = evt => {
+    const msg = JSON.parse(evt.data);
+    switch(msg.type) {
+      case 'sim_state': onSimState(msg); break;
+      case 'freq_data': onFreqData(msg); break;
+      case 'autotune_result': onTuneResult(msg); break;
+      case 'autotune_progress': break;
+      case 'preset_loaded': onPresetLoaded(msg.data); break;
+      case 'preset_list': S.presets = msg.presets; break;
+      case 'preset_saved': break;
+      case 'csv_data': downloadCSV(msg.data); break;
+      case 'reset_done': S.traces = {sp:[],pv:[],cv:[]}; break;
+      case 'error': console.error('server:', msg.message); break;
+    }
+  };
+}
+
+function send(obj) { if(S.ws && S.ws.readyState===1) S.ws.send(JSON.stringify(obj)); }
+
+function sendConfig() {
+  send({type:'configure', pid:S.pid, model:S.model, sp:S.sp});
+}
+
+// ============================================================
+// 仿真状态回调
+// ============================================================
+function onSimState(msg) {
+  // 主通道
+  S.traces.sp.push({t:msg.t, v:msg.sp});
+  S.traces.pv.push({t:msg.t, v:msg.pv});
+  S.traces.cv.push({t:msg.t, v:msg.cv});
+  if(S.traces.sp.length > S.maxPoints) {
+    S.traces.sp.shift(); S.traces.pv.shift(); S.traces.cv.shift();
+  }
+  // 更新指标
+  const m = msg.metrics || {};
+  $('m-overshoot').textContent = m.overshoot != null ? m.overshoot.toFixed(1)+'%' : '--';
+  $('m-settling').textContent = m.settling_time != null ? m.settling_time.toFixed(2)+'s' : '--';
+  $('m-rise').textContent = m.rise_time != null ? m.rise_time.toFixed(2)+'s' : '--';
+  $('m-sserr').textContent = m.ss_error != null ? m.ss_error.toFixed(4) : '--';
+  $('m-iae').textContent = m.IAE != null ? m.IAE.toFixed(2) : '--';
+  $('m-ise').textContent = m.ISE != null ? m.ISE.toFixed(2) : '--';
+  // 颜色判断
+  $('m-overshoot').className = 'val' + (m.overshoot>20?' bad':m.overshoot>10?' warn':'');
+  $('m-settling').className = 'val' + (m.settling_time>S.timeWindow*0.8?' warn':'');
+  // 实时读数
+  $('d-pv').textContent = msg.pv.toFixed(2);
+  $('d-cv').textContent = msg.cv.toFixed(2);
+  $('d-t').textContent = msg.t.toFixed(1)+'s';
+}
+
+function onFreqData(msg) {
+  S.bodeData = msg.bode;
+  S.nyquistData = msg.nyquist;
+  $('d-gm').textContent = msg.bode.gain_margin_db < 999 ? msg.bode.gain_margin_db.toFixed(1)+' dB' : '∞';
+  $('d-pm').textContent = msg.bode.phase_margin_deg < 999 ? msg.bode.phase_margin_deg.toFixed(1)+'°' : '∞';
+  $('d-gm').className = 'val' + (msg.bode.gain_margin_db<6?' bad':msg.bode.gain_margin_db<10?' warn':'');
+  $('d-pm').className = 'val' + (msg.bode.phase_margin_deg<30?' bad':msg.bode.phase_margin_deg<45?' warn':'');
+}
+
+function onTuneResult(msg) {
+  S.tuneResult = {Kp:msg.Kp, Ki:msg.Ki, Kd:msg.Kd};
+  const ident = msg.identification;
+  const method = msg.method;
+  // 显示结果
+  $('tune-result').innerHTML = `<b>${ident.method_name||method}</b><br>` +
+    `Kp=<span class="val">${msg.Kp.toFixed(3)}</span>  ` +
+    `Ki=<span class="val">${msg.Ki.toFixed(3)}</span>  ` +
+    `Kd=<span class="val">${msg.Kd.toFixed(3)}</span>`;
+  if(ident.K!=null) $('tune-result').innerHTML += `<br>K=${ident.K.toFixed(3)} L=${ident.L.toFixed(3)} T=${ident.T.toFixed(3)}`;
+  if(ident.Ku!=null) $('tune-result').innerHTML += `<br>Ku=${ident.Ku.toFixed(3)} Tu=${ident.Tu.toFixed(3)}`;
+  // 渲染可视化
+  renderTuneViz(ident, method);
+  // 显示应用按钮
+  $('btn-tune-apply').style.display = '';
+}
+
+// ============================================================
+// 示波器渲染
+// ============================================================
+class Oscilloscope {
+  constructor(canvasId) {
+    this.canvas = $(canvasId);
+    this.ctx = this.canvas.getContext('2d');
+    this._resize();
+    new ResizeObserver(()=>this._resize()).observe(this.canvas.parentElement);
+  }
+  _resize() {
+    const r = this.canvas.parentElement.getBoundingClientRect();
+    this.canvas.width = r.width * devicePixelRatio;
+    this.canvas.height = r.height * devicePixelRatio;
+    this.W = this.canvas.width; this.H = this.canvas.height;
+    this.ctx.scale(devicePixelRatio, devicePixelRatio);
+    this.dW = r.width; this.dH = r.height;
+  }
+  render(traces, timeWindow) {
+    const ctx = this.ctx;
+    const W = this.dW, H = this.dH;
+    ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+    ctx.clearRect(0,0,W,H);
+
+    // 网格
+    ctx.strokeStyle = '#142814'; ctx.lineWidth = 0.5;
+    for(let i=0;i<=6;i++){const y=H/6*i;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+    for(let i=0;i<=10;i++){const x=W/10*i;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+    // 时间刻度
+    ctx.fillStyle='#2a2a2a';ctx.font='10px Consolas';
+    for(let i=0;i<=10;i++){ctx.fillText((timeWindow/10*i).toFixed(1)+'s',W/10*i+2,H-3);}
+
+    // 自动量程
+    const all = [...traces.sp,...traces.pv,...traces.cv];
+    if(all.length<2) return;
+    let yMin=Infinity,yMax=-Infinity;
+    for(const d of all){if(d.v<yMin)yMin=d.v;if(d.v>yMax)yMax=d.v;}
+    const pad=(yMax-yMin)*0.1||1; yMin-=pad; yMax+=pad;
+
+    const tEnd = all[all.length-1].t;
+    const tStart = tEnd - timeWindow;
+    const xScale = v => ((v-tStart)/timeWindow)*W;
+    const yScale = v => H-((v-yMin)/(yMax-yMin))*H;
+
+    // 画三条线
+    const colors = {sp:'#ff8800',pv:'#00ff88',cv:'#4488ff'};
+    for(const key of ['cv','pv','sp']) {
+      const data = traces[key];
+      if(data.length<2) continue;
+      ctx.strokeStyle=colors[key];ctx.lineWidth=key==='pv'?1.8:1.2;
+      ctx.shadowColor=colors[key];ctx.shadowBlur=key==='pv'?3:1;
+      ctx.beginPath();
+      let started=false;
+      for(const d of data){
+        if(d.t<tStart) continue;
+        const x=xScale(d.t),y=yScale(d.v);
+        if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+    ctx.shadowBlur=0;
+
+    // 图例
+    const labels={sp:'SP',pv:'PV',cv:'CV'};
+    let lx=8;
+    for(const key of ['sp','pv','cv']){
+      ctx.fillStyle=colors[key];ctx.font='bold 11px Consolas';
+      ctx.fillText(labels[key],lx,14);lx+=30;
+    }
+    // 量程标注
+    ctx.fillStyle='#333';ctx.font='10px Consolas';
+    ctx.fillText(yMax.toFixed(1),W-40,12);
+    ctx.fillText(yMin.toFixed(1),W-40,H-4);
+  }
+}
+
+// ============================================================
+// Bode / Nyquist 渲染
+// ============================================================
+class BodePlotter {
+  constructor(magId, phaseId) {
+    this.magCanvas = $(magId); this.phaseCanvas = $(phaseId);
+    this.magCtx = this.magCanvas.getContext('2d');
+    this.phaseCtx = this.phaseCanvas.getContext('2d');
+    this._resize(this.magCanvas); this._resize(this.phaseCanvas);
+    new ResizeObserver(()=>{this._resize(this.magCanvas);this._resize(this.phaseCanvas);}).observe(this.magCanvas.parentElement);
+  }
+  _resize(c) {
+    const r = c.parentElement.getBoundingClientRect();
+    c.width = r.width*devicePixelRatio; c.height = r.height*devicePixelRatio;
+    c._dw = r.width; c._dh = r.height;
+  }
+  render(data) {
+    if(!data||!data.freq||data.freq.length<2) return;
+    this._drawBodeAxis(this.magCtx, this.magCanvas, data.freq, data.mag_db, 'dB',
+      [{val:0,style:'#ffcc00',dash:[4,4]}],
+      data.gain_margin_freq>0?[{x:data.gain_margin_freq,label:'Gm='+data.gain_margin_db.toFixed(1)+'dB'}]:[]);
+    this._drawBodeAxis(this.phaseCtx, this.phaseCanvas, data.freq, data.phase_deg, '°',
+      [{val:-180,style:'#ffcc00',dash:[4,4]}],
+      data.phase_margin_freq>0?[{x:data.phase_margin_freq,label:'Pm='+data.phase_margin_deg.toFixed(1)+'°'}]:[]);
+  }
+  _drawBodeAxis(ctx, canvas, freq, vals, unit, hlines, markers) {
+    const W=canvas._dw, H=canvas._dh;
+    ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+    ctx.clearRect(0,0,W,H);
+    if(!freq||freq.length<2) return;
+
+    const fMin=freq[0], fMax=freq[freq.length-1];
+    const logMin=Math.log10(fMin), logMax=Math.log10(fMax);
+    const xScale = f => ((Math.log10(f)-logMin)/(logMax-logMin))*(W-40)+30;
+    let vMin=Infinity,vMax=-Infinity;
+    for(const v of vals){if(v<vMin)vMin=v;if(v>vMax)vMax=v;}
+    const vPad=(vMax-vMin)*0.1||1;vMin-=vPad;vMax+=vPad;
+    const yScale = v => H-15-((v-vMin)/(vMax-vMin))*(H-25);
+
+    // 网格
+    ctx.strokeStyle='#142814';ctx.lineWidth=0.5;
+    for(let e=Math.ceil(logMin);e<=Math.floor(logMax);e++){
+      const x=xScale(Math.pow(10,e));ctx.beginPath();ctx.moveTo(x,5);ctx.lineTo(x,H-10);ctx.stroke();
+    }
+    // 参考线
+    for(const hl of hlines){
+      const y=yScale(hl.val);
+      ctx.strokeStyle=hl.style||'#333';ctx.lineWidth=0.8;
+      if(hl.dash)ctx.setLineDash(hl.dash);
+      ctx.beginPath();ctx.moveTo(30,y);ctx.lineTo(W-10,y);ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle=hl.style||'#333';ctx.font='9px Consolas';
+      ctx.fillText(hl.val+unit,2,y+3);
+    }
+    // 曲线
+    ctx.strokeStyle='#00cc66';ctx.lineWidth=1.5;ctx.shadowColor='#00cc66';ctx.shadowBlur=2;
+    ctx.beginPath();
+    for(let i=0;i<freq.length;i++){
+      const x=xScale(freq[i]),y=yScale(vals[i]);
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.stroke();ctx.shadowBlur=0;
+    // 标记
+    for(const m of markers){
+      const x=xScale(m.x);
+      ctx.strokeStyle='#ff4444';ctx.lineWidth=1;ctx.setLineDash([2,2]);
+      ctx.beginPath();ctx.moveTo(x,5);ctx.lineTo(x,H-10);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle='#ff4444';ctx.font='9px Consolas';ctx.fillText(m.label,x+3,14);
+    }
+  }
+}
+
+class NyquistPlotter {
+  constructor(id) {
+    this.canvas=$(id);this.ctx=this.canvas.getContext('2d');
+    this._resize();
+    new ResizeObserver(()=>this._resize()).observe(this.canvas.parentElement);
+  }
+  _resize(){
+    const r=this.canvas.parentElement.getBoundingClientRect();
+    this.canvas.width=r.width*devicePixelRatio;this.canvas.height=r.height*devicePixelRatio;
+    this.W=this.canvas.width;this.H=this.canvas.height;
+    this.dW=r.width;this.dH=r.height;
+  }
+  render(data){
+    if(!data||!data.real_pos||data.real_pos.length<2) return;
+    const ctx=this.ctx,W=this.dW,H=this.dH;
+    ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+    ctx.clearRect(0,0,W,H);
+
+    // 找范围
+    const allR=[...data.real_pos,...data.real_neg];
+    const allI=[...data.imag_pos,...data.imag_neg];
+    let rMin=Infinity,rMax=-Infinity,iMin=Infinity,iMax=-Infinity;
+    for(let i=0;i<allR.length;i++){
+      if(allR[i]<rMin)rMin=allR[i];if(allR[i]>rMax)rMax=allR[i];
+      if(allI[i]<iMin)iMin=allI[i];if(allI[i]>iMax)iMax=allI[i];
+    }
+    const rPad=(rMax-rMin)*0.15||1;iPad=(iMax-iMin)*0.15||1;
+    rMin-=rPad;rMax+=rPad;iMin-=iPad;iMax+=iPad;
+    const cx=W/2,cy=H/2;
+    const scale=Math.min(W/(rMax-rMin),H/(iMax-iMin))*0.85;
+    const xScale=r=>cx+(r-(rMin+rMax)/2)*scale;
+    const yScale=i=>cy-(i-(iMin+iMax)/2)*scale;
+
+    // 极坐标网格
+    ctx.strokeStyle='#142814';ctx.lineWidth=0.5;
+    const maxR=Math.max(Math.abs(rMin),Math.abs(rMax),Math.abs(iMin),Math.abs(iMax));
+    for(let r=1;r*scale<Math.max(W,H);r++){
+      ctx.beginPath();ctx.arc(cx,cy,r*scale,0,Math.PI*2);ctx.stroke();
+    }
+    // 轴
+    ctx.strokeStyle='#1a3a1a';ctx.lineWidth=0.8;
+    ctx.beginPath();ctx.moveTo(0,cy);ctx.lineTo(W,cy);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(cx,0);ctx.lineTo(cx,H);ctx.stroke();
+
+    // 正频率曲线
+    ctx.strokeStyle='#00cc66';ctx.lineWidth=1.5;ctx.shadowColor='#00cc66';ctx.shadowBlur=2;
+    ctx.beginPath();
+    for(let i=0;i<data.real_pos.length;i++){
+      const x=xScale(data.real_pos[i]),y=yScale(data.imag_pos[i]);
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    // 负频率（暗一点）
+    ctx.strokeStyle='#006633';ctx.lineWidth=1;
+    ctx.beginPath();
+    for(let i=0;i<data.real_neg.length;i++){
+      const x=xScale(data.real_neg[i]),y=yScale(data.imag_neg[i]);
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur=0;
+
+    // (-1,0) 点
+    const nx=xScale(-1),ny=yScale(0);
+    ctx.fillStyle='#ff4444';ctx.beginPath();ctx.arc(nx,ny,4,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#ff4444';ctx.font='9px Consolas';ctx.fillText('(-1,j0)',nx+6,ny-4);
+  }
+}
+
+// ============================================================
+// 自动整定可视化
+// ============================================================
+function renderTuneViz(ident, method) {
+  const canvas = $('tune-canvas');
+  const ctx = canvas.getContext('2d');
+  const r = canvas.getBoundingClientRect();
+  canvas.width = r.width*devicePixelRatio; canvas.height = r.height*devicePixelRatio;
+  const W=r.width, H=r.height;
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  ctx.clearRect(0,0,W,H);
+
+  if(!ident) return;
+
+  if(method==='step_response'||method==='cohen_coon'||method==='lambda_tuning') {
+    // 阶跃响应 + 切线
+    const t=ident.time, y=ident.response;
+    if(!t||t.length<2) return;
+    const tMax=t[t.length-1];
+    let yMin=0,yMax=Math.max(...y)*1.2;
+    const xS=v=>(v/tMax)*(W-60)+40;
+    const yS=v=>H-20-((v-yMin)/(yMax-yMin))*(H-40);
+
+    // 网格
+    ctx.strokeStyle='#142814';ctx.lineWidth=0.5;
+    for(let i=0;i<=4;i++){const yy=(H-40)/4*i+20;ctx.beginPath();ctx.moveTo(30,yy);ctx.lineTo(W-20,yy);ctx.stroke();}
+
+    // 响应曲线
+    ctx.strokeStyle='#00ff88';ctx.lineWidth=2;ctx.shadowColor='#00ff88';ctx.shadowBlur=2;
+    ctx.beginPath();
+    for(let i=0;i<t.length;i++){i===0?ctx.moveTo(xS(t[i]),yS(y[i])):ctx.lineTo(xS(t[i]),yS(y[i]));}
+    ctx.stroke();ctx.shadowBlur=0;
+
+    // 切线
+    if(ident.tangent_x&&ident.tangent_x.length>=2){
+      ctx.strokeStyle='#ff4444';ctx.lineWidth=1.2;ctx.setLineDash([5,3]);
+      ctx.beginPath();
+      ctx.moveTo(xS(ident.tangent_x[0]),yS(ident.tangent_y[0]));
+      ctx.lineTo(xS(ident.tangent_x[1]),yS(ident.tangent_y[1]));
+      ctx.stroke();ctx.setLineDash([]);
+    }
+
+    // 标注
+    if(ident.L!=null){
+      const lx=xS(ident.L);
+      ctx.fillStyle='#ffcc00';ctx.font='11px Consolas';
+      ctx.fillText('L='+ident.L.toFixed(2)+'s',lx+4,H-6);
+      ctx.strokeStyle='#ffcc0060';ctx.lineWidth=1;ctx.setLineDash([2,2]);
+      ctx.beginPath();ctx.moveTo(lx,20);ctx.lineTo(lx,H-20);ctx.stroke();ctx.setLineDash([]);
+    }
+    if(ident.T!=null&&ident.L!=null){
+      const tx=xS(ident.L+ident.T);
+      ctx.fillStyle='#ff8800';ctx.font='11px Consolas';
+      ctx.fillText('T='+ident.T.toFixed(2)+'s',tx+4,H-22);
+    }
+    if(ident.y_ss!=null){
+      const yy=yS(ident.y_ss);
+      ctx.strokeStyle='#ffcc0040';ctx.lineWidth=0.8;ctx.setLineDash([3,3]);
+      ctx.beginPath();ctx.moveTo(30,yy);ctx.lineTo(W-20,yy);ctx.stroke();ctx.setLineDash([]);
+    }
+    if(ident.inflection_point){
+      const[ip_t,ip_y]=ident.inflection_point;
+      ctx.fillStyle='#ff4444';ctx.beginPath();ctx.arc(xS(ip_t),yS(ip_y),3,0,Math.PI*2);ctx.fill();
+    }
+    // Lambda期望响应
+    if(ident.desired_time&&ident.desired_response){
+      ctx.strokeStyle='#44aaff';ctx.lineWidth=1.2;ctx.setLineDash([4,4]);
+      ctx.beginPath();
+      for(let i=0;i<ident.desired_time.length;i++){
+        const xx=xS(ident.desired_time[i]),yy=yS(ident.desired_response[i]*(ident.y_ss||1));
+        i===0?ctx.moveTo(xx,yy):ctx.lineTo(xx,yy);
+      }
+      ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle='#44aaff';ctx.font='10px Consolas';ctx.fillText('期望闭环',W-70,30);
+    }
+
+    // 图例
+    ctx.fillStyle='#00ff88';ctx.font='10px Consolas';ctx.fillText('开环阶跃响应',40,15);
+
+  } else if(method==='relay_feedback') {
+    // 上: PV振荡, 下: 继电器输出
+    const t=ident.time, pv=ident.pv_response, u=ident.relay_output;
+    if(!t||t.length<2) return;
+    const tMax=t[t.length-1];
+    const H1=H*0.65, H2=H*0.3;
+    const mid=H1;
+
+    const drawSub=(data,yMin,yMax,offs,h,color,label)=>{
+      const xS=v=>(v/tMax)*(W-60)+40;
+      const yS=v=>offs+h/2-((v-yMin)/(yMax-yMin||1))*h*0.8;
+      ctx.strokeStyle='#142814';ctx.lineWidth=0.5;
+      ctx.beginPath();ctx.moveTo(30,offs+h/2);ctx.lineTo(W-20,offs+h/2);ctx.stroke();
+      ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.shadowColor=color;ctx.shadowBlur=2;
+      ctx.beginPath();
+      for(let i=0;i<t.length;i++){i===0?ctx.moveTo(xS(t[i]),yS(data[i])):ctx.lineTo(xS(t[i]),yS(data[i]));}
+      ctx.stroke();ctx.shadowBlur=0;
+      ctx.fillStyle=color;ctx.font='10px Consolas';ctx.fillText(label,40,offs+12);
+    };
+
+    let pvMin=Infinity,pvMax=-Infinity;
+    for(const v of pv){if(v<pvMin)pvMin=v;if(v>pvMax)pvMax=v;}
+    const pvPad=(pvMax-pvMin)*0.1||1;
+    drawSub(pv,pvMin-pvPad,pvMax+pvPad,0,H1,'#00ff88','PV 响应');
+    drawSub(u,Math.min(...u)-0.5,Math.max(...u)+0.5,mid,H2,'#4488ff','继电器输出');
+
+    // 标注Tu
+    if(ident.Tu&&ident.peak_points&&ident.peak_points.length>=2){
+      const xS=v=>(v/tMax)*(W-60)+40;
+      const[yS_top]=[(v)=>(pvMax+pvPad-(v))/(pvMax-pvPad+pvMin-pvPad)*H1*0.8+H1*0.1];
+      ctx.strokeStyle='#ffcc00';ctx.lineWidth=1;ctx.setLineDash([3,3]);
+      const p1=ident.peak_points[0],p2=ident.peak_points[1];
+      ctx.beginPath();ctx.moveTo(xS(p1[0]),10);ctx.lineTo(xS(p1[0]),H1-5);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(xS(p2[0]),10);ctx.lineTo(xS(p2[0]),H1-5);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle='#ffcc00';ctx.font='10px Consolas';
+      ctx.fillText('Tu='+ident.Tu.toFixed(2)+'s',(xS(p1[0])+xS(p2[0]))/2-20,H1-4);
+    }
+    if(ident.Ku!=null){
+      ctx.fillStyle='#ff8800';ctx.font='10px Consolas';
+      ctx.fillText('Ku='+ident.Ku.toFixed(2),W-90,15);
+    }
+  }
+}
+
+// ============================================================
+// 参数面板绑定
+// ============================================================
+const PARAM_MAP = [
+  {sl:'sl-kp',in:'in-kp',key:'Kp',prop:'pid'},
+  {sl:'sl-ki',in:'in-ki',key:'Ki',prop:'pid'},
+  {sl:'sl-kd',in:'in-kd',key:'Kd',prop:'pid'},
+  {sl:'sl-ti',in:'in-ti',key:'Ti',prop:'pid'},
+  {sl:'sl-td',in:'in-td',key:'Td',prop:'pid'},
+  {sl:'sl-tf',in:'in-tf',key:'Tf',prop:'pid'},
+  {sl:'sl-beta',in:'in-beta',key:'beta',prop:'pid'},
+  {sl:'sl-gamma',in:'in-gamma',key:'gamma_',prop:'pid'},
+  {sl:'sl-sp',in:'in-sp',key:null,prop:'sp'},
+  {sl:'sl-mk',in:'in-mk',key:'K',prop:'model'},
+  {sl:'sl-mtau',in:'in-mtau',key:'tau',prop:'model'},
+  {sl:'sl-mtheta',in:'in-mtheta',key:'theta',prop:'model'},
+  {sl:'sl-mzeta',in:'in-mzeta',key:'zeta',prop:'model'},
+  {sl:'sl-momega',in:'in-momega',key:'omega_n',prop:'model'},
+];
+
+function bindParams() {
+  for(const m of PARAM_MAP) {
+    const sl=$(m.sl), inp=$(m.in);
+    const update = v => {
+      v = parseFloat(v);
+      if(isNaN(v)) return;
+      if(m.prop==='sp') { S.sp=v; send({type:'setpoint',value:v}); }
+      else { S[m.prop][m.key]=v; sendConfig(); }
+    };
+    sl.addEventListener('input', ()=>{ inp.value=sl.value; update(sl.value); });
+    inp.addEventListener('change', ()=>{ sl.value=inp.value; update(inp.value); });
+  }
+  // 扰动
+  $('sl-dist').addEventListener('input', ()=>{ S.model.dist_amplitude=parseFloat($('sl-dist').value); });
+  $('sl-noise').addEventListener('input', ()=>{ S.model.noise_amplitude=parseFloat($('sl-noise').value); sendConfig(); });
+}
+
+function syncPanelFromState() {
+  for(const m of PARAM_MAP) {
+    const val = m.prop==='sp' ? S.sp : S[m.prop][m.key];
+    $(m.sl).value=val; $(m.in).value=val;
+  }
+  $('sel-model').value=S.model.model_type;
+  $('sel-variant').value=S.pid.variant;
+}
+
+// ============================================================
+// 工具栏按钮
+// ============================================================
+function bindToolbar() {
+  $('btn-run').onclick=()=>{ send({type:'start'}); S.running=true; S.paused=false; };
+  $('btn-pause').onclick=()=>{ send({type:'pause'}); S.paused=!S.paused; };
+  $('btn-reset').onclick=()=>{ send({type:'reset'}); S.traces={sp:[],pv:[],cv:[]}; S.tracesB={sp:[],pv:[],cv:[]}; };
+
+  $('sel-model').onchange=()=>{
+    S.model.model_type=$('sel-model').value;
+    sendConfig(); send({type:'reset'}); S.traces={sp:[],pv:[],cv:[]};
+  };
+  $('sel-variant').onchange=()=>{ S.pid.variant=$('sel-variant').value; sendConfig(); };
+
+  $('btn-autotune').onclick=()=>{ $('autotune-overlay').classList.add('show'); S.tuneResult=null; $('tune-result').textContent='点击"执行"开始整定...'; $('btn-tune-apply').style.display='none'; };
+  $('btn-tune-close').onclick=()=>{ $('autotune-overlay').classList.remove('show'); };
+  $('btn-tune-run').onclick=()=>{
+    const method=$('sel-tune-method').value;
+    $('tune-result').textContent='正在整定...';
+    const params={step_size:1,duration:50,relay_amp:5,lambda_c:2};
+    if(method==='optimize'){
+      params.criterion=$('sel-criterion').value;
+      params.duration=30;
+    }
+    send({type:'autotune', method, params});
+  };
+  $('btn-tune-apply').onclick=()=>{
+    if(S.tuneResult){
+      S.pid.Kp=S.tuneResult.Kp; S.pid.Ki=S.tuneResult.Ki; S.pid.Kd=S.tuneResult.Kd;
+      syncPanelFromState(); sendConfig();
+      $('autotune-overlay').classList.remove('show');
+    }
+  };
+
+  $('btn-compare').onclick=()=>{
+    S.compareMode=!S.compareMode;
+    $('btn-compare').classList.toggle('active',S.compareMode);
+    $('scope-wrap-b').style.display=S.compareMode?'block':'none';
+    $('scope-divider').style.display=S.compareMode?'block':'none';
+    if(S.compareMode) S.tracesB={sp:[],pv:[],cv:[]};
+  };
+
+  $('btn-freq').onclick=()=>{
+    S.freqVisible=!S.freqVisible;
+    $('btn-freq').classList.toggle('active',S.freqVisible);
+    $('freq-area').style.display=S.freqVisible?'flex':'none';
+    $('freq-info').style.display=S.freqVisible?'block':'none';
+    if(S.freqVisible) send({type:'freq_analysis'});
+  };
+
+  $('btn-inject').onclick=()=>{
+    const amp=parseFloat($('sl-dist').value);
+    send({type:'disturbance',amplitude:amp});
+  };
+  $('btn-clear-dist').onclick=()=>{
+    $('sl-dist').value=0;S.model.dist_amplitude=0;
+    send({type:'disturbance',amplitude:0});
+  };
+
+  $('btn-save').onclick=()=>{
+    const name=prompt('预设名称:','preset_'+Date.now()%10000);
+    if(name) send({type:'save_preset',name,pid:S.pid,model:S.model,sp:S.sp});
+  };
+  $('btn-load').onclick=()=>{
+    send({type:'list_presets'});
+    setTimeout(()=>{
+      if(S.presets.length===0){alert('没有保存的预设');return;}
+      const name=prompt('可用预设:\n'+S.presets.join('\n')+'\n\n输入名称:');
+      if(name) send({type:'load_preset',name});
+    },300);
+  };
+  $('btn-export').onclick=()=>{ send({type:'export_csv'}); };
+
+  // CSV上传
+  $('btn-upload').onclick=()=>{ $('upload-overlay').style.display='block'; };
+  $('btn-upload-close').onclick=()=>{ $('upload-overlay').style.display='none'; };
+  $('btn-upload-identify').onclick=()=>{
+    const file=$('file-csv').files[0];
+    if(!file){$('upload-result').innerHTML='<span style="color:#ff4444">请选择文件</span>';return;}
+    const reader=new FileReader();
+    reader.onload=e=>{
+      fetch('/api/upload-csv',{method:'POST',headers:{'Content-Type':'application/octet-stream'},
+        body:new Blob([e.target.result],{type:'text/csv'})
+      }).then(r=>r.json()).then(data=>{
+        if(data.error){$('upload-result').innerHTML='<span style="color:#ff4444">'+data.error+'</span>';return;}
+        $('upload-result').innerHTML=`<b>辨识结果:</b><br>K=<span class="val">${data.K.toFixed(3)}</span> L=<span class="val">${data.L.toFixed(3)}</span> T=<span class="val">${data.T.toFixed(3)}</span><br>拟合度: <span class="val">${(data.fit_quality*100).toFixed(1)}%</span>`;
+      }).catch(err=>{$('upload-result').innerHTML='<span style="color:#ff4444">请求失败</span>';});
+    };
+    reader.readAsText(file);
+  };
+
+  // 自定义TF
+  $('sel-model').addEventListener('change',()=>{
+    const isCustom=$('sel-model').value==='custom';
+    $('custom-tf-section').style.display=isCustom?'block':'none';
+  });
+  $('in-custom-num').addEventListener('change',()=>{S.model.custom_num=$('in-custom-num').value;sendConfig();});
+  $('in-custom-den').addEventListener('change',()=>{S.model.custom_den=$('in-custom-den').value;sendConfig();});
+
+  // 优化选项显示
+  $('sel-tune-method').addEventListener('change',()=>{
+    $('opt-criterion-row').style.display=$('sel-tune-method').value==='optimize'?'block':'none';
+  });
+
+  $('btn-tutorial').onclick=()=>toggleTutorial();
+}
+
+function onPresetLoaded(data) {
+  if(data.pid) Object.assign(S.pid, data.pid);
+  if(data.model) Object.assign(S.model, data.model);
+  if(data.sp!=null) S.sp=data.sp;
+  syncPanelFromState(); sendConfig();
+}
+
+function downloadCSV(csv) {
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='pid-lab_'+new Date().toISOString().slice(0,19).replace(/:/g,'-')+'.csv';
+  a.click();
+}
+
+// ============================================================
+// 教程模式
+// ============================================================
+const TUTORIAL_TIPS = [
+  {target:'sl-kp',text:'比例增益。增大加快响应，但过大引起振荡。相当于"用多大力气纠正偏差"。'},
+  {target:'sl-ki',text:'积分增益。消除稳态误差，但增大超调。相当于"累计历史偏差来修正"。'},
+  {target:'sl-kd',text:'微分增益。抑制振荡、预测趋势，但对噪声敏感。相当于"看偏差变化速度来提前调节"。'},
+  {target:'sl-beta',text:'P项设定值权重(0~1)。减小可降低超调，叫"比例微分先行"。'},
+  {target:'sl-sp',text:'设定值(Target)。PID控制器的目标值。'},
+  {target:'sel-model',text:'被控对象模型。不同模型特性不同:温度有滞后、液位无自衡、伺服有振荡。'},
+  {target:'sel-variant',text:'PID算法形式。增量式天然抗饱和，ISA是工业标准。'},
+  {target:'btn-autotune',text:'自动整定。用Z-N、Cohen-Coon、继电反馈等方法自动计算PID参数。'},
+];
+let tutorialTips = [];
+
+function toggleTutorial() {
+  S.tutorialOn=!S.tutorialOn;
+  $('btn-tutorial').classList.toggle('active',S.tutorialOn);
+  if(S.tutorialOn){
+    for(const t of TUTORIAL_TIPS){
+      const el=$(t.target);
+      if(!el) continue;
+      const tip=document.createElement('div');
+      tip.className='tutorial-tip';
+      tip.textContent=t.text;
+      const r=el.getBoundingClientRect();
+      const pr=$('params-panel').getBoundingClientRect();
+      tip.style.left=(r.left-pr.left+r.width+4)+'px';
+      tip.style.top=(r.top-pr.top-2)+'px';
+      $('params-panel').appendChild(tip);
+      tutorialTips.push(tip);
+    }
+  } else {
+    for(const t of tutorialTips) t.remove();
+    tutorialTips=[];
+  }
+}
+
+// ============================================================
+// 键盘快捷键
+// ============================================================
+document.addEventListener('keydown', e => {
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT') return;
+  switch(e.key.toLowerCase()){
+    case 'r': $('btn-reset').click(); break;
+    case ' ': e.preventDefault(); $('btn-pause').click(); break;
+    case 'd': $('btn-inject').click(); break;
+    case 'c': $('btn-compare').click(); break;
+    case 's': $('btn-save').click(); break;
+    case 'f': $('btn-freq').click(); break;
+    case '1': $('sel-model').value='dc_motor'; $('sel-model').onchange(); break;
+    case '2': $('sel-model').value='temperature'; $('sel-model').onchange(); break;
+    case '3': $('sel-model').value='tank_level'; $('sel-model').onchange(); break;
+    case '4': $('sel-model').value='servo'; $('sel-model').onchange(); break;
+    case '5': $('sel-model').value='second_order'; $('sel-model').onchange(); break;
+    case '6': $('sel-model').value='coupled_tank'; $('sel-model').onchange(); break;
+  }
+});
+
+// ============================================================
+// 渲染循环
+// ============================================================
+let scopeA, scopeB, bodePlotter, nyquistPlotter;
+let lastFreqReq = 0;
+
+function renderLoop() {
+  scopeA.render(S.traces, S.timeWindow);
+  if(S.compareMode) scopeB.render(S.tracesB, S.timeWindow);
+  if(S.freqVisible && S.bodeData) {
+    bodePlotter.render(S.bodeData);
+    nyquistPlotter.render(S.nyquistData);
+  }
+  // 参数改变时自动请求频域分析（防抖）
+  if(S.freqVisible && Date.now()-lastFreqReq>500){
+    send({type:'freq_analysis'}); lastFreqReq=Date.now();
+  }
+  requestAnimationFrame(renderLoop);
+}
+
+// ============================================================
+// 初始化
+// ============================================================
+window.addEventListener('DOMContentLoaded', () => {
+  scopeA = new Oscilloscope('scope-a');
+  scopeB = new Oscilloscope('scope-b');
+  bodePlotter = new BodePlotter('bode-mag','bode-phase');
+  nyquistPlotter = new NyquistPlotter('nyquist');
+  bindParams();
+  bindToolbar();
+  syncPanelFromState();
+  connect();
+  // 自动开始
+  setTimeout(()=>{
+    sendConfig();
+    send({type:'start'});
+    S.running=true;
+  },500);
+  renderLoop();
+});
+</script>
+</body>
+</html>
